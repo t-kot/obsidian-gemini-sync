@@ -1,0 +1,24 @@
+{
+  "name": "obsidian-gemini-sync",
+  "version": "1.0.0",
+  "description": "Obsidian web clipper to Gemini-powered content processor",
+  "main": "index.js",
+  "type": "module",
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {
+    "@google/generative-ai": "^0.15.0",
+    "chokidar": "^3.5.3",
+    "dotenv": "^17.2.0",
+    "js-yaml": "^4.1.0"
+  },
+  "keywords": [
+    "obsidian",
+    "gemini",
+    "content-processing"
+  ],
+  "author": "",
+  "license": "MIT"
+}
