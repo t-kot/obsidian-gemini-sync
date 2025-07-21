@@ -24,6 +24,7 @@ class ObsidianProcessor {
   constructor() {
     this.genAI = new GoogleGenerativeAI(process.env.GEMINI_API_KEY);
     this.model = this.genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
+    this.processCounter = 0;
   }
 
   async start() {
@@ -37,7 +38,7 @@ class ObsidianProcessor {
 
     watcher.on('add', async (filePath) => {
       if (path.extname(filePath) === '.md') {
-        console.log(`新しいファイルを検出: ${filePath}`);
+        console.log(`新しいファイルを検出: ${path.basename(filePath)}`);
         await this.processFile(filePath);
       }
     });
@@ -46,10 +47,13 @@ class ObsidianProcessor {
   }
 
   async processFile(filePath) {
+    this.processCounter++;
+    const fileNumber = this.processCounter;
+    
     try {
-      console.log(`処理開始: ${path.basename(filePath)}`);
+      console.log(`${fileNumber} 処理開始: ${path.basename(filePath)}`);
       
-      const content = await fs.readFile(filePath, 'utf8');
+      const content = await this.readFileWithRetry(filePath);
       const { frontMatter, bodyContent } = this.parseFrontMatter(content);
       
       if (!frontMatter.source || !frontMatter.published) {
@@ -72,11 +76,36 @@ class ObsidianProcessor {
       
       await fs.unlink(filePath);
       
-      console.log(`処理完了: ${outputPath}`);
+      const vaultRoot = path.dirname(OUTPUT_BASE_DIR);
+      const relativePath = path.relative(vaultRoot, outputPath);
+      const encodedPath = relativePath.split('/').map(segment => encodeURIComponent(segment)).join('/');
+      const obsidianUrl = `obsidian://open?file=${encodedPath}`;
+      console.log(`${fileNumber} 処理完了: 「${path.basename(filePath)}」 ${obsidianUrl}`);
       
     } catch (error) {
       console.error(`エラー: ${error.message}`);
     }
+  }
+
+  async readFileWithRetry(filePath, maxRetries = 3, delay = 1000) {
+    for (let i = 0; i < maxRetries; i++) {
+      try {
+        await new Promise(resolve => setTimeout(resolve, delay));
+        const content = await fs.readFile(filePath, 'utf8');
+        
+        if (content.includes('---') && content.trim().length > 0) {
+          return content;
+        }
+        
+        if (i < maxRetries - 1) {
+          console.log(`ファイル読み込みリトライ ${i + 1}/${maxRetries}: ${path.basename(filePath)}`);
+        }
+      } catch (error) {
+        if (i === maxRetries - 1) throw error;
+        console.log(`ファイル読み込みエラー、リトライ ${i + 1}/${maxRetries}: ${error.message}`);
+      }
+    }
+    throw new Error('ファイル読み込みに失敗しました');
   }
 
   parseFrontMatter(content) {
